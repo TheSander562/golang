@@ -2,7 +2,10 @@ module golang
 
 go 1.17
 
-require github.com/cyruzin/golang-tmdb v1.3.4
+require (
+	github.com/cyruzin/golang-tmdb v1.3.4
+	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c
+)
 
 require (
 	github.com/json-iterator/go v1.1.9 // indirect
