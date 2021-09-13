@@ -28,7 +28,7 @@ func main() {
 	}
 
 	// API key TMDB als environment opslaan in err en als err niet nul dan terug
-	err = os.Setenv("APIKey", "***REMOVED***")
+	err = os.Setenv("APIKey", "")
 	if err != nil {
 		return
 	}
