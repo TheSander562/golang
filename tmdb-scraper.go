@@ -163,14 +163,14 @@ func inputs() {
 	}
 }
 
-func outputs(resultaat *tmdb.SearchMulti) {
-	if resultaat.TotalResults == 0 {
+func outputs(results *tmdb.SearchMulti) {
+	if results.TotalResults == 0 {
 		log.Fatal("Geen resultaten gevonden voor deze zoekopdracht!")
 	}
 
 	// Print resultaten in de range van de resultaten
-	fmt.Println("Resultaten - Pagina", resultaat.Page, "-", resultaat.TotalPages, ":")
-	for i, v := range resultaat.Results {
+	fmt.Println("Resultaten - Pagina", results.Page, "-", results.TotalPages, ":")
+	for i, v := range results.Results {
 		if v.MediaType == "movie" {
 			fmt.Println(i+1, "- Film:", v.Title)
 		} else if v.MediaType == "tv" {
