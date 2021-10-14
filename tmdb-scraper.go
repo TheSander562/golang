@@ -1,6 +1,6 @@
 package main
 
-// Import pakketjes, en github link als tmdb
+// Import packages, and GitHub link as tmdb
 import (
 	"bufio"
 	"fmt"
@@ -14,189 +14,326 @@ import (
 	"strings"
 )
 
-var (
-	pageNumber  = 1
-	searchInput = ""
-	inputNumber int
-	filePath    = "settings.yml"
-	searchSet   = false
-)
+const filePath = "settings.yml"
 
 type Config struct {
-	// Maak een config structuur met alle variabelen uit de settings yml
-	Api string `yaml:"api-key"` // Eerst de config.Api specificeren, dan wat de variabele is (string) daarna inladen
-}
-
-func pagination(result *tmdb.SearchMulti) {
-	// Voor elke pagina, tussen 1 en totaal aantal van de zoekopdracht doe het volgende
-	for page := int64(pageNumber); page <= result.TotalPages; {
-		// Als de zoekopdracht 1 pagina heeft dan:
-		if result.TotalPages == 1 {
-			fmt.Println("Voer het nummer in van de rij die je wilt kiezen:")
-
-			for {
-				inputs()
-				if 1 <= inputNumber && inputNumber <= 20 {
-					fmt.Printf("Nummer %d gekozen! \n", inputNumber)
-					return
-				} else {
-					log.Println("Voer een getal uit de lijst in!")
-				}
-			}
-			//Als totaal pagina's groter is dan 1 en het totaal aantal pagina's niet overeenkomt met de huidige pagina
-		} else if result.TotalPages > 1 && result.TotalPages != int64(pageNumber) {
-			// Als je op de eerste pagina bent dan
-			if pageNumber == 1 {
-				fmt.Println("Kies: 1 voor huidige pagina - 2 voor volgende pagina")
-
-				for {
-					inputs()
-					if inputNumber == 1 {
-						fmt.Printf("Nummer %d gekozen! \n", inputNumber)
-						return
-					} else if inputNumber == 2 {
-						pageNumber++
-						outputs(search())
-						break
-					} else {
-						log.Println("Graag 1 of 2 invoeren!")
-					}
-				}
-			} else {
-				fmt.Println("Kies: 0 voor vorige pagina - 1 voor huidige pagina - 2 voor volgende pagina")
-
-				for {
-					inputs()
-					if inputNumber == 0 {
-						pageNumber--
-						outputs(search())
-						break
-					} else if inputNumber == 1 {
-						fmt.Printf("Nummer %d gekozen! \n", inputNumber)
-						return
-					} else if inputNumber == 2 {
-						pageNumber++
-						outputs(search())
-						break
-					} else {
-						log.Println("Graag 0, 1 of 2 invoeren!")
-					}
-				}
-			}
-			// Als de pagina overeenkomt met de laatste pagina dan
-		} else if int64(pageNumber) == result.TotalPages {
-			fmt.Println("Kies: 0 voor vorige pagina - 1 voor huidige pagina")
-
-			for {
-				inputs()
-				if inputNumber == 0 {
-					pageNumber--
-					outputs(search())
-					break
-				} else if inputNumber == 1 {
-					fmt.Printf("Nummer %d gekozen! \n", inputNumber)
-					return
-				} else {
-					log.Println("Graag 0 of 1 invoeren!")
-				}
-			}
-		}
-	}
+	// Make config structure with all variabels from settings yml
+	Api      string `yaml:"api-key"` // First specify config.Api, then load Api (string) with api-key
+	Language string `yaml:"search-language"`
 }
 
 func parseConfig() {
-	// YML-parser voor de config
-	filename, _ := filepath.Abs(filePath)
-	yamlFile, err := ioutil.ReadFile(filename)
+	// YML-parser for the config
+	fileName, _ := filepath.Abs(filePath)
+	// Check if config file exists
+	yamlFile, err := ioutil.ReadFile(fileName)
+	// If config file does not exist
+	if err != nil {
+		errorCodes("noConfig")
+	}
+
+	// Create variable config and put the read config in the variable
 	var config Config
 	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
-		panic(err)
+		errorCodes("invalidConfig")
 	}
 
-	// API key TMDB als environment opslaan in err en als err niet nul dan terug
-	err = os.Setenv("APIKey", config.Api)
+	// API key TMDB save in environment, if err is not empty, return
+	err = os.Setenv("apiKey", config.Api)
+	err = os.Setenv("searchLanguage", config.Language)
 	if err != nil {
-		return
+		errorCodes("")
 	}
 }
 
-func search() *tmdb.SearchMulti {
-	// Initialiseer met APIKey, als err niet leeg is, dan print error en exit
-	tmdbClient, err := tmdb.Init(os.Getenv("APIKey"))
+func searchTMDB(p int, s string) *tmdb.SearchMulti {
+	// Get environment config keys
+	searchLanguage := os.Getenv("searchLanguage")
+	apiKey := os.Getenv("apiKey")
+
+	// Initialise variable with the APIKey, if api error print error code
+	tmdbClient, err := tmdb.Init(apiKey)
 	if err != nil {
-		log.Fatal(err)
+		errorCodes("apiError")
 	}
 
-	// Opties opgeslagen als map (array), in de map komen strings
+	// Create variables
+	var pageNumber = p
+	var searchInput = s
+
+	// Save options as Map (array), the map exists of strings
 	options := map[string]string{
-		"language": "nl-NL",
+		"language": fmt.Sprintf("%s", searchLanguage),
 		"page":     fmt.Sprintf("%d", pageNumber),
 	}
 
-	// Zoekopdracht maken
+	// Create the search result with the optins specified
 	searchResult, err := tmdbClient.GetSearchMulti(searchInput, options)
 	if err != nil {
-		log.Fatal(err)
+		errorCodes("searchError")
 	}
 
+	// return the search results
 	return searchResult
 }
 
-func inputs() {
+func searchChosen(a [2][]string, n int) {
+	searchArray := a
+	userNumber := n - 1
+	var movie *tmdb.MovieDetails
+	var tv *tmdb.TVDetails
+	var person *tmdb.PersonDetails
+	var err error
+
+	searchID, _ := strconv.Atoi(searchArray[0][userNumber])
+
+	// Get environment config keys
+	searchLanguage := os.Getenv("searchLanguage")
+	apiKey := os.Getenv("apiKey")
+
+	// Initialise variable with the APIKey, if api error print error code
+	tmdbClient, err := tmdb.Init(apiKey)
+	if err != nil {
+		errorCodes("apiError")
+	}
+
+	// Save options as Map (array), the map exists of strings
+	options := map[string]string{
+		"language": fmt.Sprintf("%s", searchLanguage),
+	}
+
+	// Check if the searched ID is tv, movie or person
+	switch searchArray[1][userNumber] {
+	case "tv":
+		tv, err = tmdbClient.GetTVDetails(searchID, options)
+		fmt.Println(tv)
+		fmt.Println(tv.Name)
+	case "movie":
+		movie, err = tmdbClient.GetMovieDetails(searchID, options)
+		fmt.Println(movie)
+		fmt.Println(movie.Title)
+	case "person":
+		person, err = tmdbClient.GetPersonDetails(searchID, options)
+		fmt.Println(person)
+		fmt.Println(person.Name)
+	}
+
+	if err != nil {
+		errorCodes("searchError")
+	}
+
+}
+
+func errorCodes(e string) {
+	// If there is any error, check the errorCode string to see which error occurred
+	switch e {
+	case "noInput":
+		log.Println("Do not leave it blank please! Choose what you want to do!")
+	case "wrongInput":
+		log.Println("This number is not on the list! Try again.")
+	case "noResults":
+		log.Fatal("No results for this search!")
+	case "noConfig":
+		log.Fatal("Config file not found.")
+	case "invalidConfig":
+		log.Fatal("Config file is not valid. Please check for any issues.")
+	case "apiError":
+		log.Fatal("No valid API key given.")
+	case "searchError":
+		log.Fatal("Input text is not valid.")
+	default:
+		log.Fatal("Default Error Code")
+	}
+}
+
+func inputSearch() string {
 	for {
 		// Input voor zoekopdracht (met Bufio is het mogelijk voor spaties)
 		input := bufio.NewReader(os.Stdin)
 		inputText, _ := input.ReadString('\n')
 
 		if inputText == "\n" {
-			log.Println("U moet iets invoeren om door te gaan!")
-		} else if searchSet == true {
-			trimInput := strings.Trim(inputText, "\n")
-			inputNumber, _ = strconv.Atoi(trimInput)
-			break
+			errorCodes("noInput")
 		} else {
-			searchInput = inputText
-			searchSet = true
-			break
+			fmt.Println("")
+			return inputText
 		}
 	}
 }
 
-func outputs(results *tmdb.SearchMulti) {
-	if results.TotalResults == 0 {
-		log.Fatal("Geen resultaten gevonden voor deze zoekopdracht!")
-	}
+func inputNavigation() int {
+	for {
+		// Input voor zoekopdracht (met Bufio is het mogelijk voor spaties)
+		input := bufio.NewReader(os.Stdin)
+		inputText, _ := input.ReadString('\n')
 
-	// Print resultaten in de range van de resultaten
-	fmt.Println("Resultaten - Pagina", results.Page, "-", results.TotalPages, ":")
-	for i, v := range results.Results {
-		if v.MediaType == "movie" {
-			fmt.Println(i+1, "- Film:", v.Title)
-		} else if v.MediaType == "tv" {
-			fmt.Println(i+1, "- Serie:", v.Name)
-		} else if v.MediaType == "person" {
-			fmt.Println(i+1, "- Persoon:", v.Name)
+		if inputText == "\n" {
+			errorCodes("noInput")
+		} else {
+			trimInput := strings.Trim(inputText, "\n")
+			inputNumber, _ := strconv.Atoi(trimInput)
+
+			fmt.Println("")
+			return inputNumber
 		}
 	}
-	fmt.Println("=====")
+}
+
+func pageLogic(n int, r *tmdb.SearchMulti) (bool, bool) {
+	input := n
+	results := r
+	page := results.Page
+	maxPages := int(results.TotalPages)
+	maxResults := int(results.TotalResults)
+
+	if input > 20 || maxResults < input {
+		errorCodes("wrongInput")
+	} else {
+		switch {
+		case maxPages == 1:
+			return onePage(input)
+
+		case maxPages > 1:
+			return morePages(input, page, maxPages)
+		}
+	}
+
+	return true, false
+}
+
+func onePage(i int) (bool, bool) {
+	input := i
+
+	switch {
+	case input == 0:
+		return false, false
+
+	case input >= 1:
+		fmt.Println("You chose:", input)
+		return true, true
+
+	default:
+		return false, false
+	}
+}
+
+func morePages(i int, p int, m int) (bool, bool) {
+	input := i
+	page := p
+	maxPages := m
+
+	switch {
+	case input == 0:
+		return false, false
+
+	case input >= 1:
+		fmt.Println("U heeft ingevuld:", input)
+		fmt.Println("U gaat naar pagina:", page)
+		fmt.Println("Maximale pagina:", maxPages)
+		return true, false
+
+	default:
+		return false, false
+	}
+}
+
+func printResults(r *tmdb.SearchMulti) [2][]string {
+	results := r
+
+	// If there are no results, print error
+	if results.TotalResults == 0 {
+		errorCodes("noResults")
+	}
+
+	// Create 2D array, one for ID and one for mediaType
+	var searchArray [2][]string
+
+	// Print results in the range of the results
+	fmt.Println("Results - Page", results.Page, "-", results.TotalPages, ":")
+	for i, v := range results.Results {
+		if v.MediaType == "movie" {
+			fmt.Println(i+1, "- Movie:", v.Title)
+		} else if v.MediaType == "tv" {
+			fmt.Println(i+1, "- Series:", v.Name)
+		} else if v.MediaType == "person" {
+			fmt.Println(i+1, "- Person:", v.Name)
+		}
+
+		searchArray[0] = append(searchArray[0], strconv.FormatInt(v.ID, 10))
+		searchArray[1] = append(searchArray[1], v.MediaType)
+	}
+	fmt.Println("======================")
+
+	maxPages := int(results.TotalPages)
+
+	if results.Page <= maxPages {
+		switch {
+		case maxPages == 1:
+			fmt.Println("Enter number of the row to choose - 0 to search again:")
+		case maxPages > 1 && maxPages != results.Page:
+			if results.Page == 1 {
+				fmt.Println("Choose: 0 to search again - 1 for current page - 2 for next page")
+			} else {
+				fmt.Println("Choose: 0 to search again - 1 for current page - 2 for previous page - 3 for next page")
+			}
+		case results.Page == maxPages:
+			fmt.Println("Choose: 0 to search again - 1 for current page - 2 for previous page")
+		}
+	}
+
+	return searchArray
 }
 
 func main() {
-	// Instellen van error code prefix en verberg de tijdstempel
-	log.SetPrefix("Foutmelding: ")
+	// Set up prefix for error codes and hide the timestamp
+	log.SetPrefix("Error code: ")
 	log.SetFlags(0)
 
+	// Parse the config and setup environment variables
 	parseConfig()
 
-	// Print tekst
-	fmt.Println("Zoek naar films/series/acteurs:")
+	// Setup main variables
+	var (
+		userNumber   int
+		userString   string
+		pageNumber   = 1
+		results      *tmdb.SearchMulti
+		searchDetail bool
+		searchSet    bool
+		searchArray  [2][]string
+	)
 
-	inputs()
+	// Loop everything
+	for {
+		// Check if the search is set (when there is already searched for something)
+		switch searchSet {
+		case false:
+			fmt.Println("Search for movies/series/actors:")
+			// Get the search string
+			userString = inputSearch()
+			// Get the results from TMDB with the page number and search string
+			results = searchTMDB(pageNumber, userString)
+			// Set the search variable to true
+			searchSet = true
+			// Print the results in terminal and put in array
+			searchArray = printResults(results)
 
-	result := search()
+			// Go to the case beneath here
+			fallthrough
 
-	outputs(result)
+		case true:
+			// Get the input number for navigating
+			userNumber = inputNavigation()
+			// Check how many pages in search result to check search again and to set searchDetail to true
+			searchSet, searchDetail = pageLogic(userNumber, results)
+		}
 
-	pagination(result)
+		if searchDetail == true {
+			fmt.Println("Details of the search:")
+			searchChosen(searchArray, userNumber)
+			break
+		}
+	}
+
 }
