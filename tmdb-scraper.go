@@ -1,6 +1,6 @@
 package main
 
-// Import packages, and GitHub link as tmdb
+// Import packages, and GitHub link as TMDB
 import (
 	"bufio"
 	"fmt"
@@ -68,7 +68,7 @@ func searchTMDB(p int, s string) *tmdb.SearchMulti {
 		"page":     fmt.Sprintf("%d", pageNumber),
 	}
 
-	// Create the search result with the optins specified
+	// Create the search result with the options specified
 	searchResult, err := tmdbClient.GetSearchMulti(searchInput, options)
 	if err != nil {
 		errorCodes("searchError")
@@ -81,10 +81,12 @@ func searchTMDB(p int, s string) *tmdb.SearchMulti {
 func searchChosen(a [2][]string, n int) {
 	searchArray := a
 	userNumber := n - 1
-	var movie *tmdb.MovieDetails
-	var tv *tmdb.TVDetails
-	var person *tmdb.PersonDetails
-	var err error
+	var (
+		movie  *tmdb.MovieDetails
+		tv     *tmdb.TVDetails
+		person *tmdb.PersonDetails
+		err    error
+	)
 
 	searchID, _ := strconv.Atoi(searchArray[0][userNumber])
 
@@ -130,8 +132,12 @@ func errorCodes(e string) {
 	switch e {
 	case "noInput":
 		log.Println("Do not leave it blank please! Choose what you want to do!")
+	case "noSearch":
+		log.Println("Do not leave it blank please! You need to search something!")
 	case "wrongInput":
 		log.Println("This number is not on the list! Try again.")
+	case "wrongNumber":
+		log.Println("No valid input! Please choose from above options.")
 	case "noResults":
 		log.Fatal("No results for this search!")
 	case "noConfig":
@@ -154,7 +160,7 @@ func inputSearch() string {
 		inputText, _ := input.ReadString('\n')
 
 		if inputText == "\n" {
-			errorCodes("noInput")
+			errorCodes("noSearch")
 		} else {
 			fmt.Println("")
 			return inputText
@@ -162,7 +168,7 @@ func inputSearch() string {
 	}
 }
 
-func inputNavigation() int {
+func inputNavigation() (int, error) {
 	for {
 		// Input voor zoekopdracht (met Bufio is het mogelijk voor spaties)
 		input := bufio.NewReader(os.Stdin)
@@ -172,10 +178,9 @@ func inputNavigation() int {
 			errorCodes("noInput")
 		} else {
 			trimInput := strings.Trim(inputText, "\n")
-			inputNumber, _ := strconv.Atoi(trimInput)
+			inputNumber, e := strconv.Atoi(trimInput)
 
-			fmt.Println("")
-			return inputNumber
+			return inputNumber, e
 		}
 	}
 }
@@ -195,7 +200,20 @@ func pageLogic(n int, r *tmdb.SearchMulti) (bool, bool) {
 			return onePage(input)
 
 		case maxPages > 1:
-			return morePages(input, page, maxPages)
+			searchSet, searchDetails, searchAction := morePages(input, page, maxPages)
+
+			switch searchAction {
+			case "next":
+				fmt.Println("Volgende pagina")
+			case "previous":
+				fmt.Println("Vorige pagina")
+			case "current":
+				fmt.Println("Huidige pagina")
+			case "error":
+				errorCodes("wrongNumber")
+			}
+
+			return searchSet, searchDetails
 		}
 	}
 
@@ -206,9 +224,6 @@ func onePage(i int) (bool, bool) {
 	input := i
 
 	switch {
-	case input == 0:
-		return false, false
-
 	case input >= 1:
 		fmt.Println("You chose:", input)
 		return true, true
@@ -218,24 +233,64 @@ func onePage(i int) (bool, bool) {
 	}
 }
 
-func morePages(i int, p int, m int) (bool, bool) {
+func morePages(i int, p int, m int) (bool, bool, string) {
 	input := i
 	page := p
 	maxPages := m
 
-	switch {
-	case input == 0:
-		return false, false
+	if page <= maxPages {
+		switch {
+		case maxPages > 1 && maxPages != page:
+			if page == 1 {
+				switch input {
+				case 0:
+					return false, false, ""
 
-	case input >= 1:
-		fmt.Println("U heeft ingevuld:", input)
-		fmt.Println("U gaat naar pagina:", page)
-		fmt.Println("Maximale pagina:", maxPages)
-		return true, false
+				case 1:
+					return true, false, "current"
 
-	default:
-		return false, false
+				case 2:
+					return true, false, "next"
+
+				default:
+					return true, false, "error"
+				}
+			} else {
+				switch input {
+				case 0:
+					return false, false, ""
+
+				case 1:
+					return true, false, "current"
+
+				case 2:
+					return true, false, "previous"
+
+				case 3:
+					return true, false, "next"
+
+				default:
+					return true, false, "error"
+				}
+			}
+		case page == maxPages:
+			switch input {
+			case 0:
+				return false, false, ""
+
+			case 1:
+				return true, false, "current"
+
+			case 2:
+				return true, false, "previous"
+
+			default:
+				return true, false, "error"
+			}
+		}
 	}
+
+	return true, false, "error"
 }
 
 func printResults(r *tmdb.SearchMulti) [2][]string {
@@ -302,6 +357,7 @@ func main() {
 		searchDetail bool
 		searchSet    bool
 		searchArray  [2][]string
+		err          error
 	)
 
 	// Loop everything
@@ -324,9 +380,14 @@ func main() {
 
 		case true:
 			// Get the input number for navigating
-			userNumber = inputNavigation()
-			// Check how many pages in search result to check search again and to set searchDetail to true
-			searchSet, searchDetail = pageLogic(userNumber, results)
+			userNumber, err = inputNavigation()
+
+			if err != nil {
+				errorCodes("wrongNumber")
+			} else {
+				// Check how many pages in search result to check search again and to set searchDetail to true
+				searchSet, searchDetail = pageLogic(userNumber, results)
+			}
 		}
 
 		if searchDetail == true {
@@ -335,5 +396,4 @@ func main() {
 			break
 		}
 	}
-
 }
