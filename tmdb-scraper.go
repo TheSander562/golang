@@ -185,7 +185,7 @@ func inputNavigation() (int, error) {
 	}
 }
 
-func pageLogic(n int, r *tmdb.SearchMulti) (bool, bool) {
+func pageLogic(n int, r *tmdb.SearchMulti) (bool, bool, string) {
 	input := n
 	results := r
 	page := results.Page
@@ -195,29 +195,18 @@ func pageLogic(n int, r *tmdb.SearchMulti) (bool, bool) {
 	if input > 20 || maxResults < input {
 		errorCodes("wrongInput")
 	} else {
-		switch {
-		case maxPages == 1:
-			return onePage(input)
+		switch maxPages {
+		case 1:
+			searchSet, searchDetails := onePage(input)
+			return searchSet, searchDetails, ""
 
-		case maxPages > 1:
+		default:
 			searchSet, searchDetails, searchAction := morePages(input, page, maxPages)
-
-			switch searchAction {
-			case "next":
-				fmt.Println("Volgende pagina")
-			case "previous":
-				fmt.Println("Vorige pagina")
-			case "current":
-				fmt.Println("Huidige pagina")
-			case "error":
-				errorCodes("wrongNumber")
-			}
-
-			return searchSet, searchDetails
+			return searchSet, searchDetails, searchAction
 		}
 	}
 
-	return true, false
+	return true, false, ""
 }
 
 func onePage(i int) (bool, bool) {
@@ -350,14 +339,15 @@ func main() {
 
 	// Setup main variables
 	var (
-		userNumber   int
-		userString   string
-		pageNumber   = 1
-		results      *tmdb.SearchMulti
-		searchDetail bool
-		searchSet    bool
-		searchArray  [2][]string
-		err          error
+		userNumber    int
+		userString    string
+		pageNumber    = 1
+		results       *tmdb.SearchMulti
+		searchDetails bool
+		searchSet     bool
+		searchAction  string
+		searchArray   [2][]string
+		err           error
 	)
 
 	// Loop everything
@@ -369,7 +359,7 @@ func main() {
 			// Get the search string
 			userString = inputSearch()
 			// Get the results from TMDB with the page number and search string
-			results = searchTMDB(pageNumber, userString)
+			results = searchTMDB(1, userString)
 			// Set the search variable to true
 			searchSet = true
 			// Print the results in terminal and put in array
@@ -385,12 +375,40 @@ func main() {
 			if err != nil {
 				errorCodes("wrongNumber")
 			} else {
-				// Check how many pages in search result to check search again and to set searchDetail to true
-				searchSet, searchDetail = pageLogic(userNumber, results)
+				// Check how many pages in search result to check search again and to set searchDetails to true
+				searchSet, searchDetails, searchAction = pageLogic(userNumber, results)
 			}
 		}
 
-		if searchDetail == true {
+		if searchAction != "" && searchAction != "error" {
+			switch searchAction {
+			case "current":
+				fmt.Println("Enter number of the row to choose - 0 to search again:")
+				// Get the input number for navigating
+				userNumber, err = inputNavigation()
+
+				if err != nil {
+					errorCodes("wrongNumber")
+				} else {
+					searchSet, searchDetails = onePage(userNumber)
+				}
+			case "next":
+				pageNumber++
+				// Get the results from TMDB with the page number and search string
+				results = searchTMDB(pageNumber, userString)
+				searchArray = printResults(results)
+			case "previous":
+				pageNumber--
+				// Get the results from TMDB with the page number and search string
+				results = searchTMDB(pageNumber, userString)
+				searchArray = printResults(results)
+			}
+
+		} else if searchAction == "error" {
+			errorCodes("wrongNumber")
+		}
+
+		if searchDetails == true {
 			fmt.Println("Details of the search:")
 			searchChosen(searchArray, userNumber)
 			break
